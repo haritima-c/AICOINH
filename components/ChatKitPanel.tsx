@@ -383,7 +383,7 @@ export function ChatKitPanel({
   const blockingError = errors.script ?? activeError;
 
   if (!paramsReady) {
-    return null; // show nothing while params load
+    return null; 
   }
 
   if (paramsReady && !prolificId && !qualtricsId) {
