@@ -1,9 +1,4 @@
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
-<<<<<<< ours
+
 # ChatKit Starter Template
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
