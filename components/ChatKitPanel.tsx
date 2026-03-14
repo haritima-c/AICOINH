@@ -71,11 +71,12 @@ export function ChatKitPanel({
   // Read participant IDs from URL params
 
   const [params, setParams] = useState<URLSearchParams | null>(null);
+  const [paramsReady, setParamsReady] = useState(false);
 
   useEffect(() => {
     setParams(new URLSearchParams(window.location.search));
+    setParamsReady(true);
   }, []);
-
 
   // To match your Qualtrics iframe URL:
   const prolificId = params?.get("prolificId") ?? null;
@@ -381,7 +382,11 @@ export function ChatKitPanel({
   const activeError = errors.session ?? errors.integration;
   const blockingError = errors.script ?? activeError;
 
-    if (params !== null && !prolificId && !qualtricsId) {
+  if (!paramsReady) {
+    return null; // show nothing while params load
+  }
+
+  if (paramsReady && !prolificId && !qualtricsId) {
     return (
       <div className="flex h-[90vh] w-full items-center justify-center rounded-2xl bg-white dark:bg-slate-900">
         <div className="text-center p-8">
