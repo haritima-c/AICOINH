@@ -36,10 +36,13 @@ yarn-error.log*
 
 # Export outputs
 logs/
-local_assets/
+local_assets/export_*/
+local_assets/conversations_json/
+local_assets/conversations_export*.csv
+local_assets/conversations_summary*.csv
 conversations_json/
-conversations_export.csv     ← one row per message
-conversations_summary.csv    ← one row per participant + full transcript
+conversations_export.csv
+conversations_summary.csv
 
 # vercel
 .vercel
