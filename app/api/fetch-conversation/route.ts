@@ -110,15 +110,28 @@ export async function POST(req: Request) {
     const itemsData = JSON.parse(itemsRaw) as { data?: ThreadItem[] };
     const items: ThreadItem[] = itemsData?.data ?? [];
 
-    // Step 3: Save raw JSON (as requested) + clean messages
-    const fileId = qualtrics_id ?? prolific_id ?? session_id;
-    const logDir = path.join(process.cwd(), "logs");
-    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    // // Step 3: Save raw JSON (as requested) + clean messages
+    // const fileId = qualtrics_id ?? prolific_id ?? session_id;
+    // const logDir = path.join(process.cwd(), "logs");
+    // if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
 
-    fs.writeFileSync(
-      path.join(logDir, fileId + ".json"),
-      JSON.stringify({ session_id, prolific_id, prolific_system_id, qualtrics_id, condition, thread_id: thread.id, items }, null, 2)
-    );
+    // fs.writeFileSync(
+    //   path.join(logDir, fileId + ".json"),
+    //   JSON.stringify({ session_id, prolific_id, prolific_system_id, qualtrics_id, condition, thread_id: thread.id, items }, null, 2)
+    // );
+
+    // Step 3: Save raw JSON — local only, skip in production
+    try {
+      const fileId = qualtrics_id ?? prolific_id ?? session_id;
+      const logDir = path.join(process.cwd(), "logs");
+      if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(logDir, fileId + ".json"),
+        JSON.stringify({ session_id, prolific_id, prolific_system_id, qualtrics_id, condition, thread_id: thread.id, items }, null, 2)
+      );
+    } catch {
+      // File system not available in production — skip silently
+    }
 
     // Step 4: ALSO save to Postgres
     // console.log("[fetch-conversation] items count:", items.length);
