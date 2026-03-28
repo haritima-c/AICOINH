@@ -24,9 +24,11 @@ import time
 import re
 from zipfile import Path
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ── Config ────────────────────────────────────────────────────────────────────
+
+
 
 # Load from .env if present
 try:
@@ -94,7 +96,10 @@ def parse_user_string(user_str):
     Parse 'uid:R_999;prolific:test123;cond:NA' into a dict.
     Returns {'uid': 'R_999', 'prolific': 'test123', 'cond': 'NA'}
     """
-    result = {"uid": None, "prolific": None, "cond": None}
+    result = {"uid": None, 
+              "prolific": None, 
+              "prolificSystemId": None,    # ← ADD THIS LINE
+              "cond": None}
     if not user_str:
         return result
 
@@ -107,7 +112,6 @@ def parse_user_string(user_str):
                 result[key] = val if val != "NA" else None
 
     return result
-
 
 def extract_text(content_list):
     """Extract text from a content array."""
@@ -145,7 +149,7 @@ def main():
         thread_id = thread["id"]
         user_str = thread.get("user", "")
         participant = parse_user_string(user_str)
-        created_at = datetime.utcfromtimestamp(thread.get("created_at", 0)).isoformat()
+        created_at = datetime.fromtimestamp(thread.get("created_at", 0), tz=timezone.utc).isoformat()
 
         print(f"  [{i+1}/{len(threads)}] Thread {thread_id[:20]}... user={user_str}")
 
@@ -176,28 +180,34 @@ def main():
             role = "user" if msg.get("type") == "chatkit.user_message" else "assistant"
             text = extract_text(msg.get("content", []))
             rows_long.append({
-                "thread_id": thread_id,
-                "prolific_id": participant["prolific"],
-                "qualtrics_id": participant["uid"],
-                "condition": participant["cond"],
-                "thread_created_at": created_at,
-                "item_id": msg["id"],
-                "role": role,
-                "message": text,
-                "message_created_at": datetime.utcfromtimestamp(msg.get("created_at", 0)).isoformat(),
+                "thread_id":           thread_id,
+                "session_id":          None,
+                "qualtrics_id":        participant["uid"],
+                "prolific_id":         participant["prolific"],
+                "prolific_system_id":  participant["prolificSystemId"],
+                "condition":           participant["cond"],
+                "source_url":          user_str,           # ← raw user string goes here
+                "role":                role,
+                "message":             text,
+                "item_id":             msg["id"],
+                "thread_created_at":   created_at,
+                "message_created_at": datetime.fromtimestamp(msg.get("created_at", 0), tz=timezone.utc).isoformat(),
             })
 
         # Summary format — one row per participant
         rows_summary.append({
-            "thread_id": thread_id,
-            "prolific_id": participant["prolific"],
-            "qualtrics_id": participant["uid"],
-            "condition": participant["cond"],
-            "thread_created_at": created_at,
-            "total_messages": len(messages),
-            "user_messages": len(user_messages),
+            "thread_id":          thread_id,
+            "session_id":         None,                        # ← ADD
+            "qualtrics_id":       participant["uid"],
+            "prolific_id":        participant["prolific"],
+            "prolific_system_id": participant["prolificSystemId"],
+            "condition":          participant["cond"],
+            "source_url":         user_str,
+            "thread_created_at":  created_at,
+            "total_messages":     len(messages),
+            "user_messages":      len(user_messages),
             "assistant_messages": len(assistant_messages),
-            "transcript": transcript,
+            "transcript":         transcript,
         })
 
     # Step 3: Write JSON files — one per session in conversations_json/
@@ -206,25 +216,57 @@ def main():
     json_dir = os.path.join(export_dir, "conversations_json")
     os.makedirs(json_dir, exist_ok=True)
 
+    # for row in rows_summary:
+    #     thread_messages = [r for r in rows_long if r["thread_id"] == row["thread_id"]]
+    #     raw_id = row["qualtrics_id"] or row["prolific_id"] or row["thread_id"]
+    #     # Strip Qualtrics unresolved placeholders like ${e://Field/UID}
+    #     if raw_id and raw_id.startswith("${"):
+    #         raw_id = row["prolific_id"] or row["thread_id"]
+    #     # Sanitize filename — remove any chars invalid on Windows/Mac
+    #     file_id = re.sub(r'[\\/:*?"<>|{}$]', "_", raw_id or row["thread_id"])
+    #     filepath = os.path.join(json_dir, file_id + ".json")
+    #     with open(filepath, "w", encoding="utf-8") as f:
+    #         json.dump({
+    #             "thread_id": row["thread_id"],
+    #             "prolific_id": row["prolific_id"],
+    #             "qualtrics_id": row["qualtrics_id"],
+    #             "condition": row["condition"],
+    #             "thread_created_at": row["thread_created_at"],
+    #             "total_messages": row["total_messages"],
+    #             "messages": [
+    #                 {"role": m["role"], "message": m["message"], "created_at": m["message_created_at"]}
+    #                 for m in thread_messages
+    #             ],
+    #         }, f, indent=2)
+
     for row in rows_summary:
         thread_messages = [r for r in rows_long if r["thread_id"] == row["thread_id"]]
         raw_id = row["qualtrics_id"] or row["prolific_id"] or row["thread_id"]
-        # Strip Qualtrics unresolved placeholders like ${e://Field/UID}
         if raw_id and raw_id.startswith("${"):
             raw_id = row["prolific_id"] or row["thread_id"]
-        # Sanitize filename — remove any chars invalid on Windows/Mac
-        file_id = re.sub(r'[\\/:*?"<>|{}$]', "_", raw_id or row["thread_id"])
+        file_id = re.sub(r'[\\/:*?"<>|{}$]', "_", raw_id or row["thread_id"]) + "_" + row["thread_id"]
+        # file_id = re.sub(r'[\\/:*?"<>|{}$]', "_", raw_id or row["thread_id"]) + "_" + thread_id#[:8]
+        # file_id = re.sub(r'[\\/:*?"<>|{}$]', "_", raw_id or row["thread_id"])
         filepath = os.path.join(json_dir, file_id + ".json")
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump({
-                "thread_id": row["thread_id"],
-                "prolific_id": row["prolific_id"],
-                "qualtrics_id": row["qualtrics_id"],
-                "condition": row["condition"],
-                "thread_created_at": row["thread_created_at"],
-                "total_messages": row["total_messages"],
+                "thread_id":          row["thread_id"],
+                "session_id":         None,
+                "qualtrics_id":       row["qualtrics_id"],
+                "prolific_id":        row["prolific_id"],
+                "prolific_system_id": row["prolific_system_id"],
+                "condition":          row["condition"],
+                "source_url":         row["source_url"],
+                "thread_created_at":  row["thread_created_at"],
+                "total_messages":     row["total_messages"],
                 "messages": [
-                    {"role": m["role"], "message": m["message"], "created_at": m["message_created_at"]}
+                    {
+                        "item_id":            m["item_id"],
+                        "role":               m["role"],
+                        "message":            m["message"],
+                        "thread_created_at":  m["thread_created_at"],
+                        "message_created_at": m["message_created_at"],
+                    }
                     for m in thread_messages
                 ],
             }, f, indent=2)
@@ -258,4 +300,6 @@ def main():
 
 
 if __name__ == "__main__":
+    
+    
     main()

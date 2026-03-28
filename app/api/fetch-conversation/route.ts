@@ -9,6 +9,7 @@ type ThreadItem = {
   id: string;
   type: string;
   role?: string;  
+  created_at?: number;    
   content: { type: string; text?: string }[];
 };
 
@@ -44,7 +45,10 @@ export async function POST(req: Request) {
   try {
     const uid = qualtrics_id ?? "NA";
     const prolific = prolific_id ?? "NA";
-    const userString = "uid:" + uid + ";prolific:" + prolific + ";cond:NA";
+    // const userString = "uid:" + uid + ";prolific:" + prolific + ";cond:NA";
+    const prolificSystem = prolific_system_id ?? "NA";
+    const cond = condition ?? "NA";
+    const userString = "uid:" + uid + ";prolific:" + prolific + ";prolificSystemId:" + prolificSystem + ";cond:" + cond;
 
     // Step 1: Find the thread for this user
     const listRes = await fetch(
@@ -65,8 +69,12 @@ export async function POST(req: Request) {
     }
 
     const listData = (await listRes.json()) as {
-      data: { id: string; user?: string }[];
+      data: { id: string; user?: string; created_at?: number }[];  
     };
+
+      // ADD THIS TEMPORARILY
+    // console.log("[fetch-conversation] threads found:", JSON.stringify(listData.data?.map(t => ({ id: t.id, user: t.user }))));
+    // console.log("[fetch-conversation] looking for:", userString);
 
     const thread =
       listData?.data?.find((t) => t.user === userString) ??
@@ -113,21 +121,29 @@ export async function POST(req: Request) {
     );
 
     // Step 4: ALSO save to Postgres
+    // console.log("[fetch-conversation] items count:", items.length);
     for (const item of items) {
-      const text = item.content?.find((c) => c.type === "text")?.text ?? "";
+      const text = (item.content || [])
+        .filter((c) => ["input_text", "output_text", "text"].includes(c.type) && c.text)
+        .map((c) => c.text)
+        .join(" ")
+        .trim();
+      // console.log("[fetch-conversation] item:", item.id, "type:", item.type, "role:", item.role, "text length:", text.length);
       if (!text) continue;
 
       await saveMessageToDB({
-        session_id:         session_id,
-        thread_id:          thread.id,
-        qualtrics_id:       qualtrics_id ?? null,
-        prolific_id:        prolific_id ?? null,
-        prolific_system_id: prolific_system_id ?? null,
-        condition:          condition ?? null,
-        source_url:         source_url ?? null,
-        role:               item.role ?? item.type,
-        content:            text,
-        item_id:            item.id,
+        session_id:          session_id,
+        thread_id:           thread.id,
+        qualtrics_id:        qualtrics_id ?? null,
+        prolific_id:         prolific_id ?? null,
+        prolific_system_id:  prolific_system_id ?? null,
+        condition:           condition ?? null,
+        source_url:          source_url ?? null,
+        role:                item.type === "chatkit.user_message" ? "user" : "assistant",
+        message:             text,
+        item_id:             item.id,
+        thread_created_at:   thread.created_at ? new Date(thread.created_at * 1000) : null,   // ← ADD
+        message_created_at:  item.created_at ? new Date(item.created_at * 1000) : null,        // ← ADD
       });
     }
 

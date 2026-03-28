@@ -48,6 +48,8 @@ HEADERS = {
 BASE_URL = "https://api.openai.com/v1/chatkit"
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
+run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+export_dir = os.path.join(script_dir, f"export_{run_timestamp}")
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def list_all_threads():
@@ -200,7 +202,8 @@ def main():
 
     # Step 3: Write JSON files — one per session in conversations_json/
     print("\n[3/4] Writing JSON files...")
-    json_dir = os.path.join(script_dir, "conversations_json")
+    os.makedirs(export_dir, exist_ok=True)
+    json_dir = os.path.join(export_dir, "conversations_json")
     os.makedirs(json_dir, exist_ok=True)
 
     for row in rows_summary:
@@ -233,7 +236,7 @@ def main():
 
     # Long format
     if rows_long:
-        long_file = os.path.join(script_dir, "conversations_export.csv")
+        long_file = os.path.join(export_dir, f"conversations_export_{run_timestamp}.csv")
         with open(long_file, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=rows_long[0].keys())
             writer.writeheader()
@@ -242,7 +245,7 @@ def main():
 
     # Summary format
     if rows_summary:
-        summary_file = os.path.join(script_dir, "conversations_summary.csv")
+        summary_file = os.path.join(export_dir, f"conversations_summary_{run_timestamp}.csv")
         with open(summary_file, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=rows_summary[0].keys())
             writer.writeheader()
