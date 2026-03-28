@@ -141,7 +141,8 @@ export function ChatKitPanel({
     } finally {
       isSavingRef.current = false;
     }
-  }, [prolificId, qualtricsId]);
+  // }, [prolificId, qualtricsId]);
+   }, [prolificId, qualtricsId, prolificSystemId, condition]);
 
   // ─── Cleanup ──────────────────────────────────────────────────────────────
   useEffect(() => {
